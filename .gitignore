@@ -11,5 +11,6 @@ pom.xml.asc
 /out
 /.repl
 *.log
+*.swp
 /.env
 /.sass-cache
