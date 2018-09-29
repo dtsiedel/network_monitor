@@ -1,0 +1,40 @@
+html, body {
+    background-color : #3b3f44;
+    height : 99%;
+    min-height : 500px;
+    width : 99%;
+    min-width: 500px;
+    overflow : hidden; /* no overscroll */
+}
+
+#app {
+    height : 100%;
+    width : 100%;
+}
+
+.root {
+    height : 100%;
+    width : 100%;
+}
+
+.title {
+    width : 95%;
+    margin : auto;
+    height : 10%;
+    background-color : #3c3f45;
+    color : white;
+    text-align : center;
+    border-radius : 3px;
+    border : 1px solid white;
+}
+
+.machines {
+    width : 95%;
+    margin : auto;
+    height : 89%;
+    background-color : #3c3f45;
+    color : white;
+    text-align : center;
+    border-radius : 3px;
+    border : 1px solid white;
+}
