@@ -3,6 +3,8 @@
             [compojure.route :refer [not-found resources]]
             [hiccup.page :refer [include-js include-css html5]]
             [network_monitor.middleware :refer [wrap-middleware]]
+            [ring.middleware.json :refer [wrap-json-response]]
+            [ring.util.response :refer [response]]
             [config.core :refer [env]]))
 
 (def mount-target
@@ -26,10 +28,18 @@
      mount-target
      (include-js "/js/app.js")]))
 
+;TODO: actually get the machines lol
+(defn machines []
+    (wrap-json-response 
+        (fn [_] 
+            (response {:test "post"})
+        )
+    )
+)
 
 (defroutes routes
   (GET "/" [] (loading-page))
-  (GET "/about" [] (loading-page))
+  (GET "/machines" [] (machines))
   
   (resources "/")
   (not-found "Not Found"))

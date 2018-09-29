@@ -1,6 +1,9 @@
 (ns network-monitor.core
-    (:require [reagent.core :as reagent :refer [atom]]
+    (:require
+              [ajax.core :as ajax]
+              [reagent.core :as reagent :refer [atom]]
               [re-frame.core :as reframe]
+              [day8.re-frame.http-fx]
               [secretary.core :as secretary :include-macros true]
               [accountant.core :as accountant]))
 ;;;;
@@ -76,6 +79,32 @@
 ;;;; reframe event handlers
 ;;;;
 
+(defn handle-http-failed
+    [cofx event]
+    (println "Failed http request" cofx event)
+)
+
+(defn handle-got-machines
+    [cofx event]
+    (let [machines (second event)]
+        ;TODO: parse and update db
+        (println "Got machines " machines) 
+    )
+)
+
+(defn handle-fetch-machines
+    [cofx event]
+    {:http-xhrio 
+        {
+            :method :get
+            :uri "/machines"
+            :response-format (ajax/json-response-format)
+            :on-success [:got-machines]
+            :on-failure [:failed]
+        }
+    }
+)
+
 (defn handle-add-machine
     [cofx event]
     (let [db (:db cofx)]
@@ -100,7 +129,7 @@
 )
 
 ;;;;
-;;;; reframe registrations
+;;;; reframe registrations (maps events to handlers)
 ;;;;
 
 (reframe/reg-event-db
@@ -109,6 +138,21 @@
         ;return is starting state of database
         {:machines []}
     )
+)
+
+(reframe/reg-event-fx
+    :failed
+    handle-http-failed
+)
+
+(reframe/reg-event-fx
+    :got-machines
+    handle-got-machines
+)
+
+(reframe/reg-event-fx
+    :fetch-machines
+    handle-fetch-machines
 )
 
 (reframe/reg-event-fx
@@ -128,8 +172,8 @@
 (defn title []
     [:div {:class "title"} 
         [:div "Network Monitor"]
-        [:button {:on-click #(reframe/dispatch [:add-machine])}
-                "Add random machine"
+        [:button {:on-click #(reframe/dispatch [:fetch-machines])}
+                "Update Machines"
         ]
     ]
 )
