@@ -45,6 +45,7 @@
         :mac (random-mac)
         :ip (random-ip)
         :timestamp (.getTime (js.Date.))
+        :id (str (random-uuid))
     }
 )
 
@@ -75,11 +76,26 @@
 ;;;; reframe event handlers
 ;;;;
 
-(defn handle-add-random
-    [coeffects event]
-    (let [db (:db coeffects)]
-        ;return map describing effect
+(defn handle-add-machine
+    [cofx event]
+    (let [db (:db cofx)]
+        ;return map describing effect (in this case, new db state)
         {:db (update-in db [:machines] conj (random-machine))}
+    )
+)
+
+(defn handle-delete-machine
+    [cofx event]
+    (let [
+          db (:db cofx)
+          id (second event)
+         ]
+        {:db (update-in
+                db
+                [:machines]
+                (fn [x] (remove #(= (:id %) id) x))
+             )
+        }
     )
 )
 
@@ -87,18 +103,22 @@
 ;;;; reframe registrations
 ;;;;
 
-; give initial values to db. Return value is initial value of
-; db
 (reframe/reg-event-db
     :init-db
     (fn [_ _]
+        ;return is starting state of database
         {:machines []}
     )
 )
 
 (reframe/reg-event-fx
-    :add-random
-    handle-add-random
+    :add-machine
+    handle-add-machine
+)
+
+(reframe/reg-event-fx
+    :delete-machine
+    handle-delete-machine
 )
 
 ;;;;
@@ -108,7 +128,7 @@
 (defn title []
     [:div {:class "title"} 
         [:div "Network Monitor"]
-        [:button {:on-click #(reframe/dispatch [:add-random])}
+        [:button {:on-click #(reframe/dispatch [:add-machine])}
                 "Add random machine"
         ]
     ]
@@ -119,6 +139,11 @@
         [:div (str "IP: " (:ip m))]
         [:div (str "MAC: " (:mac m))]
         [:div (str "Time: " (:timestamp m))]
+        [:button 
+            {:on-click
+            #(reframe/dispatch [:delete-machine (:id m)])}
+            "Delete"
+        ]
     ]
 )
 
