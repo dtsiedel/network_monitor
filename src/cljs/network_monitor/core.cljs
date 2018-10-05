@@ -56,75 +56,20 @@
 ;;;; reframe query functions
 ;;;;
 
-(defn query-machines 
-    [db v]
-    :machines
-    (:machines db)
-)
-
 ; register the query function, so that later you can get it with
 ; (subscribe :machines)
 (reframe/reg-sub
     :machines
-    query-machines
+    (fn [db v]
+        (:machines db)
+    )
 )
 
 ;do we have data yet?
 (re-frame.core/reg-sub
-  :initialized?
-  (fn [db _]
-    (not (empty? db))))
-
-;;;;
-;;;; reframe event handlers
-;;;;
-
-(defn handle-http-failed
-    [cofx event]
-    (println "Failed http request" cofx event)
-)
-
-(defn handle-got-machines
-    [cofx event]
-    (let [machines (second event)]
-        ;TODO: parse and update db
-        (println "Got machines " machines) 
-    )
-)
-
-(defn handle-fetch-machines
-    [cofx event]
-    {:http-xhrio 
-        {
-            :method :get
-            :uri "/machines"
-            :response-format (ajax/json-response-format)
-            :on-success [:got-machines]
-            :on-failure [:failed]
-        }
-    }
-)
-
-(defn handle-add-machine
-    [cofx event]
-    (let [db (:db cofx)]
-        ;return map describing effect (in this case, new db state)
-        {:db (update-in db [:machines] conj (random-machine))}
-    )
-)
-
-(defn handle-delete-machine
-    [cofx event]
-    (let [
-          db (:db cofx)
-          id (second event)
-         ]
-        {:db (update-in
-                db
-                [:machines]
-                (fn [x] (remove #(= (:id %) id) x))
-             )
-        }
+    :initialized?
+    (fn [db _]
+        (not (empty? db))
     )
 )
 
@@ -142,27 +87,62 @@
 
 (reframe/reg-event-fx
     :failed
-    handle-http-failed
+    (fn [cofx event]
+        (println "Failed http request" cofx event)
+    )
 )
 
 (reframe/reg-event-fx
     :got-machines
-    handle-got-machines
+    (fn [cofx event]
+        (let [machines (second event)]
+            ;TODO: parse and update db
+            (println "Got machines " machines) 
+        )
+    )
 )
 
 (reframe/reg-event-fx
     :fetch-machines
-    handle-fetch-machines
+    (fn [cofx event]
+        {:http-xhrio 
+            {
+                :method :get
+                :uri "/machines"
+                :response-format (ajax/json-response-format)
+                :on-success [:got-machines]
+                :on-failure [:failed]
+            }
+        }
+    )
 )
 
 (reframe/reg-event-fx
     :add-machine
-    handle-add-machine
+    (fn[cofx event]
+        (let [db (:db cofx)]
+            ;return map describing effect
+            ;in this case, new db state
+            {:db (update-in db [:machines] conj (random-machine))}
+        )
+    )
 )
 
 (reframe/reg-event-fx
     :delete-machine
-    handle-delete-machine
+    (fn [cofx event]
+        (let [
+              db (:db cofx)
+              id (second event)
+             ]
+            {:db (update-in
+                    db
+                    [:machines]
+                    (fn [x] (remove #(= (:id %) id) x))
+                 )
+            }
+        )
+    )
 )
 
 ;;;;
