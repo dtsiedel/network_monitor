@@ -2,6 +2,7 @@
     (:require  
             [clojure.core.async :refer [<!! go timeout]]
             [clojure.java.shell :refer [sh]]
+            [clojure.string :as str]
             [compojure.core :refer [GET defroutes]]
             [compojure.route :refer [not-found resources]]
             [config.core :refer [env]]
@@ -13,6 +14,7 @@
 )
 
 (defonce state (atom {:machines []}))
+(defonce ip_range "192.168.0")
 
 (def mount-target
   [:div#app
@@ -38,16 +40,11 @@
 (defn machines []
     (wrap-json-response 
         (fn [_] 
-            (let [machines_string @state]
-                (response {:test machines_string})
+            (let [machines @state]
+                (response machines)
             )
         )
     )
-)
-
-; repeatedly call a function every *ms* milliseconds
-(defn set_interval [callback ms]
-    (future (while true (do (Thread/sleep ms) (callback))))
 )
 
 ; ping all machines on given class C network
@@ -59,8 +56,7 @@
     )
 )
 
-; run arp -a and parse the results
-;TODO: parse the results
+; run arp -a and return the stdout
 (defn read_arp_cache []
     (let
         [
@@ -68,6 +64,38 @@
             output (:out res)
         ]
         output
+    )
+)
+
+; get each {ip mac} pair with given ip_prefix
+; from the given string
+(defn extract_machine_map [strn ip_prefix]
+    (let
+        [
+            lines (str/split-lines strn)
+            ips (map #(let [end (str/index-of % ")")]
+                        (subs % 3 end)
+                      )
+                      lines
+                )
+            macs (map #(let [start (+ (str/index-of % "at ") 3)
+                             end (str/index-of % " on")]
+                        (subs % start end)
+                       )
+                       lines
+                 )
+            machines (map (fn [x y] {:ip x :machine y}) ips macs)
+            machines (filter
+                        (fn [machine]
+                              (.contains
+                                (:ip machine)
+                                ip_prefix
+                              )
+                        )
+                        machines
+                     )
+        ]
+        machines
     )
 )
 
@@ -88,12 +116,15 @@
         (while true
             (<!! (timeout 5000))
             (do
-                (ping_sweep "192.168.0")
-                (let [m (read_arp_cache)]
-                    (swap! machines assoc-in [:machines] m)
+                (ping_sweep ip_range)
+                (let [
+                        raw (read_arp_cache)
+                        m_map (extract_machine_map raw ip_range)
+                     ]
+                    (swap! machines assoc-in [:machines] m_map)
                 )
             )
-            (reset! state {:machines @machines})
+            (reset! state {:machines (:machines @machines)})
         )
     )
 )
