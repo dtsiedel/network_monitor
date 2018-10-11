@@ -1,6 +1,7 @@
 (ns network-monitor.core
     (:require
               [ajax.core :as ajax]
+              [clojure.walk :as walk]
               [reagent.core :as reagent :refer [atom]]
               [re-frame.core :as reframe]
               [day8.re-frame.http-fx]
@@ -47,7 +48,6 @@
     {
         :mac (random-mac)
         :ip (random-ip)
-        :timestamp (.getTime (js.Date.))
         :id (str (random-uuid))
     }
 )
@@ -57,11 +57,20 @@
 ;;;;
 
 ; register the query function, so that later you can get it with
-; (subscribe :machines)
+; (subscribe :machines). This gives you the reactive version of
+; that view of the database
 (reframe/reg-sub
     :machines
     (fn [db v]
         (:machines db)
+    )
+)
+
+; subscription for the query list
+(reframe/reg-sub
+    :trusted
+    (fn [db v]
+        (:trusted db)
     )
 )
 
@@ -73,6 +82,7 @@
     )
 )
 
+
 ;;;;
 ;;;; reframe registrations (maps events to handlers)
 ;;;;
@@ -81,7 +91,7 @@
     :init-db
     (fn [_ _]
         ;return is starting state of database
-        {:machines []}
+        {:machines [] :trusted []}
     )
 )
 
@@ -95,9 +105,15 @@
 (reframe/reg-event-fx
     :got-machines
     (fn [cofx event]
-        (let [machines (second event)]
-            ;TODO: parse and update db
-            (println "Got machines " machines) 
+        (let [
+              db (:db cofx)
+              machines (second event)
+              keywordized (walk/keywordize-keys machines)
+              machines_list (:machines keywordized)
+             ]
+            {
+                :db (assoc-in db [:machines] machines_list)
+            }
         )
     )
 )
@@ -128,18 +144,24 @@
     )
 )
 
+; new db-state: add ip if it was absent, remove if it was present
 (reframe/reg-event-fx
-    :delete-machine
+    :toggle_trusted
     (fn [cofx event]
         (let [
               db (:db cofx)
-              id (second event)
+              ip (second event)
              ]
-            {:db (update-in
+            {:db (assoc-in
                     db
-                    [:machines]
-                    (fn [x] (remove #(= (:id %) id) x))
-                 )
+                    [:trusted]
+                    (let [trusted (:trusted db)]
+                        (if (not (some #{ip} trusted))
+                            (conj trusted ip)
+                            (remove #(= % ip) trusted)
+                        )
+                    )
+                )
             }
         )
     )
@@ -149,6 +171,7 @@
 ;;;; reagent components
 ;;;;
 
+; the top bar
 (defn title []
     [:div {:class "title"} 
         [:div "Network Monitor"]
@@ -157,20 +180,36 @@
         ]
     ]
 )
+
+; a single machine's representation
 (defn machine [m]
-    [:div 
-        {:class "machine"}
-        [:div (str "IP: " (:ip m))]
-        [:div (str "MAC: " (:mac m))]
-        [:div (str "Time: " (:timestamp m))]
-        [:button 
-            {:on-click
-            #(reframe/dispatch [:delete-machine (:id m)])}
-            "Delete"
+    (let [
+          trusted (reframe/subscribe [:trusted])
+          base_class "machine"
+          ip (:ip m)
+          mac (:mac m)
+         ]
+        [:div
+            {:class (if (some #{ip} @trusted)
+                        (str base_class " trusted")
+                        (str base_class " untrusted")
+                    )
+            }
+            [:div (str "IP: " ip)]
+            [:div (str "MAC: " mac)]
+            [:button
+                {:on-click
+                    #(do
+                        (reframe/dispatch [:toggle_trusted (:ip m)])
+                     )
+                }
+                "Toggle Trusted"
+            ]
         ]
-    ]
+    )
 )
 
+; a container for all [machine]s
 (defn machines []
     ; re-render whenever query-machines changes
     (let [machines (reframe/subscribe [:machines])]

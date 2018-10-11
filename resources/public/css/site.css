@@ -47,6 +47,13 @@ html, body {
     margin : auto;
     vertical-align : middle;
     display : inline-block;
-    background-color : #ff7f3f;
     border-radius : 5px;
+}
+
+.trusted {
+    background-color : #42f47d;
+}
+
+.untrusted {
+    background-color : #ff2511;
 }

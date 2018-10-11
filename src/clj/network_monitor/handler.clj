@@ -69,9 +69,11 @@
 
 ; get each {ip mac} pair with given ip_prefix
 ; from the given string
+;TODO: pinging broken (-c 1?)
 (defn extract_machine_map [strn ip_prefix]
     (let
         [
+            digits [0 1 2 3 4 5 6 7 8 9]
             lines (str/split-lines strn)
             ips (map #(let [end (str/index-of % ")")]
                         (subs % 3 end)
@@ -84,12 +86,22 @@
                        )
                        lines
                  )
-            machines (map (fn [x y] {:ip x :machine y}) ips macs)
+            machines (map (fn [x y] {:ip x :mac y}) ips macs)
             machines (filter
                         (fn [machine]
-                              (.contains
-                                (:ip machine)
-                                ip_prefix
+                              (and
+                                (.contains (:ip machine) ip_prefix)
+                                (reduce
+                                    (fn [x y]
+                                        (or x y)
+                                    )
+                                    (for [i digits]
+                                        (.contains
+                                            (:mac machine)
+                                            (str i)
+                                        )
+                                    )
+                                )
                               )
                         )
                         machines
