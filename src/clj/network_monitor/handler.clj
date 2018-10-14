@@ -13,7 +13,8 @@
     )
 )
 
-(defonce state (atom {:machines []}))
+(import (java.net InetAddress))
+(defonce state (atom {:machines [] :last_sweep 0}))
 (defonce ip_range "192.168.0")
 
 (def mount-target
@@ -22,6 +23,12 @@
       [:p "please run "
        [:b "lein figwheel"]
        " in order to start the compiler"]])
+
+; in place of using (sh "ping"), which tries to ping
+; until you stop it
+(defn ping [host]
+    (.isReachable (InetAddress/getByName host) 2000)
+)
 
 (defn head []
   [:head
@@ -47,29 +54,8 @@
     )
 )
 
-; ping all machines on given class C network
-(defn ping_sweep [first_octet]
-    (for [last_octet (range 265)]
-        (let [name (str first_octet "." last_octet)]
-            (sh "ping" name)
-        )
-    )
-)
-
-; run arp -a and return the stdout
-(defn read_arp_cache []
-    (let
-        [
-            res (sh "arp" "-a")
-            output (:out res)
-        ]
-        output
-    )
-)
-
 ; get each {ip mac} pair with given ip_prefix
 ; from the given string
-;TODO: pinging broken (-c 1?)
 (defn extract_machine_map [strn ip_prefix]
     (let
         [
@@ -111,33 +97,50 @@
     )
 )
 
-(defroutes routes
-  (GET "/" [] (loading-page))
-  (GET "/machines" [] (machines))
-  
-  (resources "/")
-  (not-found "Not Found"))
+; run arp -a and return the stdout
+(defn read_arp_cache []
+    (let
+        [
+            res (sh "arp" "-a")
+            output (:out res)
+        ]
+        output
+    )
+)
 
-(def app (wrap-middleware #'routes))
+; read arp cache and put the result (parsed) into @state
+(defn update_state_from_arp_cache []
+    (let [
+            raw (read_arp_cache)
+            m_map (extract_machine_map raw ip_range)
+         ]
+        (swap! state assoc-in [:machines] m_map)
+    )
+)
 
-; set a timer to run our ping sweep and arp check
-; periodically. Had to do some tricky stuff with atoms
-; to allow @state to be updated from within the go block
-(go
-    (let [machines (atom {:machines []})] 
-        (while true
-            (<!! (timeout 5000))
-            (do
-                (ping_sweep ip_range)
-                (let [
-                        raw (read_arp_cache)
-                        m_map (extract_machine_map raw ip_range)
-                     ]
-                    (swap! machines assoc-in [:machines] m_map)
-                )
-            )
-            (reset! state {:machines (:machines @machines)})
+; ping all machines on a given c-class network, then update
+; our state atom based on the contents of the arp cache
+(defn ping_sweep [base]
+    (for [x (range 256)]
+        (let [address (str base "." x)]
+            (go (do
+                (ping address)
+            ))
         )
     )
 )
 
+;TODO I don't know why but the ping/arp thing works if they're
+; two separate calls instead of one with (do). So make the client
+; have timers to set off the sweep, read cache, and pull machines.
+; Probabyl keep timestamp on ping and arp to keep them from being
+; spammed by multiple machines
+(defroutes routes
+  (GET "/" [] (loading-page))
+  (GET "/ping" [] (ping_sweep ip_range)) 
+  (GET "/update" [] (update_state_from_arp_cache)) 
+  (GET "/machines" [] (machines))
+  (resources "/")
+  (not-found "Not Found"))
+
+(def app (wrap-middleware #'routes))
