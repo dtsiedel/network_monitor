@@ -191,17 +191,15 @@
          ]
         [:div
             {:class (if (some #{ip} @trusted)
-                        (str base_class " trusted")
-                        (str base_class " untrusted")
+                        [base_class "trusted"]
+                        [base_class "untrusted"]
                     )
             }
             [:div (str "IP: " ip)]
             [:div (str "MAC: " mac)]
             [:button
                 {:on-click
-                    #(do
-                        (reframe/dispatch [:toggle_trusted (:ip m)])
-                     )
+                    #(reframe/dispatch [:toggle_trusted (:ip m)])
                 }
                 "Toggle Trusted"
             ]
